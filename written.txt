@@ -1,3 +1,21 @@
-a.
-b.
-c.
+a. Insert p_k = (2^-k, 2^-k) for k = 1..n. Every split leaves only one point
+   out and pushes the rest into the top-left child, so the tree becomes a
+   chain of depth ~n (a list).
+   Constant time: query (0.9, 0.9). It falls in the root's bottom-right child,
+   which is empty, so we stop right away.
+   O(n) time: query (0, 0) (or any point very close to it). We have to walk
+   down the whole chain to reach it.
+
+b. The node keeps splitting forever. All the copies always fall in the same
+   child, so the leaf never gets under capacity and we recurse until the
+   floats run out or the stack overflows.
+   Fix: cap the tree depth (or a minimum cell size) and let leaves at that
+   limit go over capacity. Another option is to store duplicates once with
+   a count.
+
+c. A quadtree splits fixed space, not the objects. Translating or rotating
+   the scene moves objects across cell boundaries (rotation also changes
+   their AABBs), so the tree has to be mostly rebuilt. Quadtrees work well
+   for static or slowly changing scenes inside known bounds. They are bad
+   for scenes with large or global movement, where a BVH that can just be
+   refit works better.

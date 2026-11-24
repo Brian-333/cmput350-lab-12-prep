@@ -179,7 +179,40 @@ public:
     // Returns the number of intersection candidates found
     uint32_t queryIntersecting(const AABB<float>& queryBounds, std::vector<uint32_t>& candidates) {
         // TODO -- do not use recursion, but you may emulate it yourself.
-        return 0;
+        uint32_t found = 0;
+        if (!mBounds.intersects(queryBounds)) {
+            return found;
+        }
+    
+
+        // each "frame" of our emulated recursion: which node, and the region it covers
+        std::vector<std::pair<uint32_t, AABB<float>>> nodeStack = {{0, mBounds}};
+        nodeStack.reserve(MAX_DEPTH);
+
+        while (!nodeStack.empty()) {
+            auto [nodeIdx, cellBounds] = nodeStack.back();
+            nodeStack.pop_back();
+            const QuadTreeNode& node = mNodes[nodeIdx];
+            // check this node's primitives (leaf contents, or straddlers if internal)
+            for (uint32_t p = node.primitivesIdx; p != INVALID_IDX; p = mNextPrimitiveIdx[p]) {
+                if (mPrimitiveBounds[p].intersects(queryBounds)) {
+                    candidates.push_back(p);
+                    ++found;
+                }
+            }
+            if (node.isLeaf()) {
+                continue;
+            }
+            for (uint32_t dir = 0; dir < 4; ++dir) {
+                AABB<float> childBounds = cellBounds;
+                aabbEnter(childBounds, static_cast<OrdinalDirection>(dir));
+                if (childBounds.intersects(queryBounds)) {  // prune before pushing
+                    nodeStack.push_back({node.childIdx + dir, childBounds});
+                }
+            }
+
+        }
+        return found;
     }
 
     // suitable for sparse updates
@@ -290,14 +323,46 @@ private:
     // Precondition: currentCell contains query.
     OrdinalDirection aabbQueryQuadrant(const AABB<float>& query,
                                        const AABB<float>& currentCell) const {
-        return {};
+        const sf::Vector2f mid = currentCell.middle();
+        uint32_t dir = 0;
+        if (query.maxPoint.x <= mid.x) {
+            // West
+        } else if (query.minPoint.x >= mid.x) {
+            dir |= 1; // East
+        } else {
+            return OrdinalDirection::INVALID_DIRECTION;
+        }
+
+        if (query.maxPoint.y <= mid.y) {
+            // North
+        } else if (query.minPoint.y >= mid.y) {
+            dir |= 2; // South
+        } else {
+            return OrdinalDirection::INVALID_DIRECTION;
+        }
+
+        return static_cast<OrdinalDirection>(dir);
     };
     // TODO
 
     // modifies a given AABB to obtain the resulting AABB if we were entering the cell on its
     // "direction" quadrant
     // Precondition: direction is not INVALID
-    void aabbEnter(AABB<float>& bounds, OrdinalDirection direction) const {};
+    void aabbEnter(AABB<float>& bounds, OrdinalDirection direction) const {
+        assert(direction != OrdinalDirection::INVALID_DIRECTION);
+
+        const sf::Vector2f mid = bounds.middle();
+        if (direction & 1) { // East
+            bounds.minPoint.x = mid.x;
+        } else {
+            bounds.maxPoint.x = mid.x;
+        }
+        if (direction & 2) { // South
+            bounds.minPoint.y = mid.y;
+        } else {
+            bounds.maxPoint.y = mid.y;
+        }
+    };
     // TODO
 
     AABB<float> mBounds;
